@@ -80,8 +80,7 @@ def plot_min_mass_hist(
     true_coords: np.ndarray,
     xgrid: np.ndarray,
     ygrid: np.ndarray,
-    ax = None,
-    n_bins=10
+    ax = None
     ):
     s = min_mass_containing_location(model_output, true_coords, xgrid, ygrid)
     use_to_plot = ax if ax else plt

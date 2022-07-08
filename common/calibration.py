@@ -1,8 +1,12 @@
+import multiprocessing as mp
+
 from typing import Tuple
 
 import numpy as np
 
 from matplotlib import pyplot as plt
+
+from common.plotting import plot_calibration_curve
 
 
 def assign_to_bin_1d(arr, bins):
@@ -14,8 +18,12 @@ def assign_to_bin_1d(arr, bins):
     """
     x_0 = bins[0]
     dx = bins[1] - x_0
-    i = int((arr - x_0) / dx)
-    return i
+    float_idx = (arr - x_0) / dx
+    if isinstance(float_idx, np.ndarray):
+        idx = float_idx.astype(int)
+    else:
+        idx = int(float_idx)
+    return idx
 
 
 def assign_to_bin_2d(locations, xgrid, ygrid):
@@ -36,14 +44,13 @@ def assign_to_bin_2d(locations, xgrid, ygrid):
     x_bins = xgrid[0]
     # same for y coord
     y_bins = ygrid[:, 0]
-    x_idxs = [assign_to_bin_1d(x_coord, x_bins) for x_coord in x_coords]
-    y_idxs = [assign_to_bin_1d(y_coord, y_bins) for y_coord in y_coords]
+    x_idxs = assign_to_bin_1d(x_coords, x_bins)
+    y_idxs = assign_to_bin_1d(y_coords, y_bins)
     # NOTE: we expect model output to have shape (NUM_SAMPLES, n_x_pts, n_y_pts)
     # so when we flatten, the entry at coordinate (i, j) gets mapped to
-    # i * n_y_pts + j
+    # (n_y_pts * i) + j
     n_y_pts = len(y_bins)
-    # print(list(zip(x_idxs, y_idxs)))
-    return np.array([i * n_y_pts + j for i, j in zip(x_idxs, y_idxs)])
+    return (n_y_pts * x_idxs) + y_idxs
 
 
 def min_mass_containing_location(
@@ -75,6 +82,46 @@ def min_mass_containing_location(
     s = np.where(condition, 0, sorted_maps).sum(axis=1)
     return s
 
+
+def min_mass_containing_location_single(pmf, loc, xgrid, ygrid):
+    # flatten the pmf
+    flattened = pmf.flatten()
+    # argsort in descending order
+    argsorted = flattened.argsort()[::-1]
+    # assign the true location to a coordinate bin
+    # reshape loc to a (1, 2) array so the vectorized function
+    # assign_to_bin_2d still works
+    loc_idx = assign_to_bin_2d(loc[np.newaxis, :], xgrid, ygrid)
+    # bin number for first interval containing location
+    bin_idx = (argsorted == loc_idx).argmax()
+    # distribution with values at indices above bin_idxs zeroed out
+    # x_idx = [
+    # [0, 1, 2, 3, ...],
+    # [0, 1, 2, 3, ...]
+    # ]
+    num_bins = xgrid.shape[0] * xgrid.shape[1]
+    sorted_maps = flattened[argsorted]
+    s = np.where(np.arange(num_bins) > bin_idx, 0, sorted_maps).sum()
+    return s
+
+
+def min_mass_containing_location_mp(
+    maps: np.ndarray,
+    locations: np.ndarray,
+    xgrid: np.ndarray,
+    ygrid: np.ndarray
+):
+    def arg_iter():
+        for pmf, loc in zip(maps, locations):
+            yield (pmf, loc, xgrid, ygrid)
+
+    with mp.Pool(processes=mp.cpu_count()) as pool:
+        arg_iterator = arg_iter()
+        masses = pool.starmap(min_mass_containing_location_single, arg_iterator)
+    
+    return np.array(masses)
+        
+
 def plot_min_mass_hist(
     model_output: np.ndarray,
     true_coords: np.ndarray,
@@ -86,12 +133,15 @@ def plot_min_mass_hist(
     use_to_plot = ax if ax else plt
     use_to_plot.hist(s)
 
-def calculate_calibration_curve(
+def calibration_curve(
     model_output: np.ndarray,
     true_coords: np.ndarray,
     xgrid: np.ndarray,
     ygrid: np.ndarray,
-    n_bins=10
+    disable_multiprocessing = False,
+    n_bins=10,
+    ax=None,
+    plot=False
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Given an array of probability maps and true locations, calculate and return
@@ -105,30 +155,20 @@ def calculate_calibration_curve(
     observed_props: An array of shape (n_bins,) containing the true observed proportions
         of times the true location fell into the given interval.
     """
-    s = min_mass_containing_location(model_output, true_coords, xgrid, ygrid)
+    # if the number of samples is less than around 200,
+    # use the vectorized version
+    # if not, use the multiprocessing version
+    if len(model_output) < 200 or disable_multiprocessing:
+        s = min_mass_containing_location(model_output, true_coords, xgrid, ygrid)
+    else:
+        s = min_mass_containing_location_mp(model_output, true_coords, xgrid, ygrid)
     counts, bin_edges = np.histogram(
         s,
         bins=n_bins,
         range=(0, 1)
     )
     observed_props = counts.cumsum() / counts.sum()
+    if plot:
+        plot_calibration_curve(bin_edges[1:], observed_props, ax=ax)
     return bin_edges[1:], observed_props
 
-def plot_calibration_curve(
-    model_output: np.ndarray,
-    true_coords: np.ndarray,
-    xgrid: np.ndarray,
-    ygrid: np.ndarray,
-    ax = None,
-    n_bins=10
-    ):
-    bin_edges, true_props = calculate_calibration_curve(
-        model_output, true_coords, xgrid, ygrid, n_bins
-    )
-    if not ax:
-        fig, ax = plt.subplots()
-    ax.scatter(bin_edges, true_props)
-    ax.plot([0, 1], [0, 1], color='grey', linestyle='dashed')
-    ax.set_xlabel('Probability assigned to region around mode')
-    ax.set_ylabel('True proportion of samples in region')
-    return bin_edges, true_props

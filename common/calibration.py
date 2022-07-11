@@ -9,23 +9,6 @@ from matplotlib import pyplot as plt
 from common.plotting import plot_calibration_curve
 
 
-def assign_to_bin_1d(arr, bins):
-    """
-    Return an array of indices of the bins to which each input in
-    `arr` corresponds.
-    
-    Note: this method assumes that all bins are evenly spaced apart.
-    """
-    x_0 = bins[0]
-    dx = bins[1] - x_0
-    float_idx = (arr - x_0) / dx
-    if isinstance(float_idx, np.ndarray):
-        idx = float_idx.astype(int)
-    else:
-        idx = int(float_idx)
-    return idx
-
-
 def assign_to_bin_2d(locations, xgrid, ygrid):
     """
     Return an array of indices of the 2d bins to which each input in
@@ -44,8 +27,10 @@ def assign_to_bin_2d(locations, xgrid, ygrid):
     x_bins = xgrid[0]
     # same for y coord
     y_bins = ygrid[:, 0]
-    x_idxs = assign_to_bin_1d(x_coords, x_bins)
-    y_idxs = assign_to_bin_1d(y_coords, y_bins)
+    # assign each coord to a bin in one dimension
+    # note: subtract one to ignore leftmost bin (0)
+    x_idxs = np.digitize(x_coords, x_bins) - 1
+    y_idxs = np.digitize(y_coords, y_bins) - 1
     # NOTE: we expect model output to have shape (NUM_SAMPLES, n_x_pts, n_y_pts)
     # so when we flatten, the entry at coordinate (i, j) gets mapped to
     # (n_y_pts * i) + j

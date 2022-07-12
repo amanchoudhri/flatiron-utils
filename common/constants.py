@@ -4,9 +4,6 @@ import numpy as np
 
 PRA_ARRAYS_PATH = Path('/mnt/home/atanelus/pra_arrays/')
 
-LARGE_MIC_POS = np.load(PRA_ARRAYS_PATH / 'large_mic_pos.npy')
-LARGE_ROOM_DIMS = np.load(PRA_ARRAYS_PATH / 'large_room_dims.npy')
-
 # by default, pyroomacoustics sets the temperature to be
 # such that the speed of sound is 343 m/s
 # as per:
@@ -19,3 +16,19 @@ SAMPLE_RATE = 125000  # all our audio is sampled at 125 kHz
 # default values for MUSE frequency filtering
 F_LO = 0
 F_HI = 62500
+
+# ====== SIMULATED DATA SCENARIOS ======
+
+def room_info(mic_pos, room_dims):
+    DIMS_ARR = np.load(PRA_ARRAYS_PATH / (room_dims + '.npy'))
+    POS_ARR = np.load(PRA_ARRAYS_PATH / (mic_pos + '.npy'))
+    return {'mic_pos': POS_ARR, 'room_dims': DIMS_ARR}
+
+SCENARIOS = {
+    'small_room_4': room_info('small_mic_pos', 'small_room_dims'),
+    'big_room_8ceiling': room_info('mic8_ceiling', 'large_room_dims'),
+    'big_room_16': room_info('mic16_ceiling', 'large_room_dims'),
+    'big_room_8floor': room_info('mic8_floor', 'large_room_dims'),
+}
+
+# ======================================

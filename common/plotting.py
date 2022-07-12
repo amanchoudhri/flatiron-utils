@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-def subplots(n_plots, sharex=True, sharey=True, **kwargs) -> Tuple[Figure, List[Axes]]:
+def subplots(n_plots, scale_factor=4, sharex=True, sharey=True, **kwargs) -> Tuple[Figure, List[Axes]]:
     """
     Create nicely sized and laid-out subplots for a desired number of plots.
     """
@@ -19,8 +19,8 @@ def subplots(n_plots, sharex=True, sharey=True, **kwargs) -> Tuple[Figure, List[
     n_rows = max(filter(lambda n: n_plots % n == 0, options))
     n_cols = int(n_plots / n_rows)
     # now generate the Figure and Axes pyplot objects
-    SCALE_FACTOR = 4  # cosmetic scale factor to make larger plot
-    figsize = (n_cols * SCALE_FACTOR, n_rows * SCALE_FACTOR)
+    # cosmetic scale factor to make larger plot
+    figsize = (n_cols * scale_factor, n_rows * scale_factor)
     fig, axs = plt.subplots(
         n_rows, n_cols, figsize=figsize,
         sharex=sharex, sharey=sharey,

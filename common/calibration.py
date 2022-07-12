@@ -105,18 +105,7 @@ def min_mass_containing_location_mp(
         masses = pool.starmap(min_mass_containing_location_single, arg_iterator)
     
     return np.array(masses)
-        
 
-def plot_min_mass_hist(
-    model_output: np.ndarray,
-    true_coords: np.ndarray,
-    xgrid: np.ndarray,
-    ygrid: np.ndarray,
-    ax = None
-    ):
-    s = min_mass_containing_location(model_output, true_coords, xgrid, ygrid)
-    use_to_plot = ax if ax else plt
-    use_to_plot.hist(s)
 
 def calibration_curve(
     model_output: np.ndarray,
